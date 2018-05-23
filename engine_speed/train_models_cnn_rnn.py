@@ -5,23 +5,25 @@ import pickle
 import os.path
 import time
 from keras.models import Sequential, load_model
-from keras.layers import InputLayer, MaxPooling1D, Conv1D, Dense, Flatten #, Dropout
+from keras.layers import InputLayer, MaxPooling1D, Conv1D, Dense, Flatten, TimeDistributed #, Dropout
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, ReduceLROnPlateau
 from keras.utils import plot_model
 from keras.optimizers import Adam
 from keras import regularizers
-from random import shuffle
 
 import os
 
 dumpfile_datasets = "datasets.pickle"
 all_files = glob.glob("soundfiles/*.wav")
-shuffle(all_files)
 
 sound_interval_ms=300.
 sound_stride_ms=150.
 time_per_file = 5000.
 batch_size = 128
+
+num_sequencial_samples = 256
+
+
 number_of_samples = int(time_per_file/sound_stride_ms) * len(all_files)
 steps_per_epoch = int(number_of_samples/batch_size)
 
@@ -68,15 +70,18 @@ for filter1_size in filter1_sizes:
                                     with open(os.path.join(current_test_dir, 'metadata.json'), 'w') as outfile:
                                         print json.dumps(meta_dict)
                                         json.dump(meta_dict, outfile)
+                                    
+
                                     model = Sequential()
                                     model.add(InputLayer(batch_input_shape=input_shape))
-                                    model.add(Conv1D(filters=filter1_size[0], kernel_size=filter1_size[1] ,strides=filter1_stride, activation= 'relu', name="conv1"))
-                                    model.add(MaxPooling1D(pool_size=pool1_sizes_stride[0], strides=pool1_sizes_stride[1]))
-                                    model.add(Conv1D(filters=filter2_size[0], kernel_size=filter2_size[1] ,strides=filter2_stride, activation= 'relu', name="conv3")) 
-                                    model.add(MaxPooling1D(pool_size=pool2_sizes_stride[0], strides=pool2_sizes_stride[1]))
-                                    model.add(Flatten())
-                                    model.add(Dense(dense_size, activation='relu', kernel_regularizer=regularizers.l2(0.001)))
+                                    model.add(TimeDistributed(Conv1D(filters=filter1_size[0], kernel_size=filter1_size[1] ,strides=filter1_stride, activation= 'relu', name="conv1")))
+                                    model.add(TimeDistributed(MaxPooling1D(pool_size=pool1_sizes_stride[0], strides=pool1_sizes_stride[1])))
+                                    model.add(TimeDistributed(Conv1D(filters=filter2_size[0], kernel_size=filter2_size[1] ,strides=filter2_stride, activation= 'relu', name="conv3")) )
+                                    model.add(TimeDistributed(MaxPooling1D(pool_size=pool2_sizes_stride[0], strides=pool2_sizes_stride[1])))
+                                    model.add(TimeDistributed(Flatten()))
+                                    model.add(TimeDistributed(Dense(dense_size, activation='relu', kernel_regularizer=regularizers.l2(0.001))))
                                     # model.add(Dropout(0.5))
+                                    model.add(LSTM(num_sequencial_samples, return_sequences=False, dropout=0.5))
                                     model.add(Dense(1, activation='relu', kernel_regularizer=regularizers.l2(0.001)))
 
                                     print(model.summary())
